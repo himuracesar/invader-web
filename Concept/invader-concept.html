@@ -1,0 +1,214 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invader Web - Game Concept</title>
+
+    <script type="text/javascript" src="/engine/WebGL-Engine.js"></script>
+    <script type="text/javascript" src="../engine/pipeline/Pipeline.js"></script>
+    <script type="text/javascript" src="../engine/pipeline/SimplePipeline.js"></script>
+    <script type="text/javascript" src="../engine/pipeline/CookTorrancePipeline.js"></script>
+    <script type="text/javascript" src="../engine/light/DirectionalLight.js"></script>
+    <script type="text/javascript" src="../engine/light/PointLight.js"></script>
+    <script type="text/javascript" src="../engine/light/SpotLight.js"></script>
+
+    <script type="text/javascript" src="../engine/Shape.js"></script>
+
+</head>
+<body onload="init();">
+    <!--canvas id="webGLcanvas"-->
+    <canvas id="webGLcanvas" width="1300" height="900">
+        Your browser does not support the HTML5 canvas element.
+    </canvas>
+    
+    <script type="text/javascript">
+        var gl;
+        var canvas;
+        var camera;
+
+        var x = 0;
+        var y = 0;
+        var lastX = 0;
+        var lastY = 0;
+        var dragging = false;
+
+        var projectMode = ProjectMode.Development;
+
+         //------------- Meshes ----------------
+         var grid;
+         var floor;
+
+         //------------- Pipelines -------------
+        var simplePipeline;
+        var cookTorrancePipeline;
+
+        //------------- Materials --------------
+        var m_gray;
+
+        //------------- Lights -----------------
+        var directionalLight;
+
+        //------------- Textures ---------------
+        var tex_g1462;
+
+         //----------------------------------
+
+        function input(){
+            if(keypress[KeyCode.W])
+                camera.moveForward(1);
+            if(keypress[KeyCode.S])
+                camera.moveForward(-1);
+            if(keypress[KeyCode.A])
+                camera.strafe(-1);
+            if(keypress[KeyCode.D])
+                camera.strafe(1);
+            if(keypress[KeyCode.Left])
+                camera.yaw(0.01);
+            if(keypress[KeyCode.Right])
+                camera.yaw(-0.01);
+            if(keypress[KeyCode.Up])
+                camera.pitch(0.01);
+            if(keypress[KeyCode.Down])
+                camera.pitch(-0.01);
+        }
+
+        function onMouseUp(event) {
+            this.dragging = false;
+        }
+
+        function onMouseDown(event) {
+            this.dragging = true;
+            var x = event.clientX; // x coordinate of a mouse pointer
+            var y = event.clientY; // y coordinate of a mouse pointer
+            var rect = event.target.getBoundingClientRect() ;
+
+            x = ((x - rect.left) - canvas.width / 2) / (canvas.width / 2);
+            y = (canvas.height / 2 - (y - rect.top)) / (canvas.height / 2);
+        }
+
+        function onMouseMove(){
+            this.lastX = this.x;
+            this.lastY = this.y;
+
+            this.x = event.clientX;
+            this.y = event.clientY;
+
+            if (!this.dragging) 
+                return;
+
+            const dx = this.x - this.lastX;
+            const dy = this.y - this.lastY;
+
+            camera.yaw(dx * camera.getSpeedRotation());
+            camera.pitch(dy * camera.getSpeedRotation());
+        }
+    
+        function init(){
+            canvas = document.getElementById("webGLcanvas");
+            gl = webGLengine.initWebGL(canvas);
+
+            window.onkeydown = event => this.onKeyDown(event);
+            window.onkeyup = event => this.onKeyUp(event);
+            canvas.onmouseup = event => this.onMouseUp(event);
+            canvas.onmousedown = event => this.onMouseDown(event);
+            canvas.onmousemove = event => this.onMouseMove(event);
+
+            camera = new Camera(gl);
+            camera.setPosition([0.0, 50.0, 140.0]);
+            camera.setSpeed(2.0);
+            camera.setFarPlane(4000.0);
+
+            simplePipeline = new SimplePipeline(gl);
+            cookTorrancePipeline = new CookTorrancePipeline(gl);
+
+            tex_g1462 = webGLengine.createTexture(gl, "textures/g1462.png");
+
+            //------------- Materials -----------------
+            m_gray = new Material();
+            m_gray.setDiffuseColor([0.5, 0.5, 0.5, 1.0]);
+            m_gray.setAmbientColor([0.5, 0.5, 0.5, 1.0]);
+            m_gray.setSpecularColor([1.0, 1.0, 1.0, 1.0]);
+            m_gray.setSpecularPower(32.0);
+            m_gray.setBindingPoint(0);
+            m_gray.setName("M_GRAY");
+            m_gray.setMetallness(0.5);
+            m_gray.setRoughness(1.0);
+            m_gray.setFresnel(0.0);
+            m_gray.setHasTexture(true);
+            m_gray.setDiffuseTextureIndex(0);
+
+            //------------- Meshes -----------------
+            var shape = new Shape();
+
+            descriptor = {};
+            descriptor.delta = [100.0, 0.0, 100.0];
+            descriptor.numVertRows = 50;
+            descriptor.numVertCols = 50;
+            descriptor.position = [0.0, 0.0, 0.0];
+            descriptor.texScale = 1.0;
+
+            grid = shape.CreateGrid(descriptor);
+            grid.setMaterial(0, m_gray);
+            grid.getSubmesh(0).materialIndex = 0;
+
+            descriptor = {};
+            descriptor.delta = [20.0, 0.0, 20.0];
+            descriptor.numVertRows = 50;
+            descriptor.numVertCols = 50;
+            descriptor.position = [0.0, 0.0, 0.0];
+            descriptor.texScale = 0.25;
+
+            floor = shape.CreateGrid(descriptor);
+            floor.setMaterial(0, m_gray);
+            floor.getSubmesh(0).materialIndex = 0;
+            floor.addTexture(tex_g1462);
+
+            //------------- Lights -----------------
+            directionalLight = new DirectionalLight();
+            directionalLight.setBindingPoint(1);
+            directionalLight.setEnabled(true);
+            directionalLight.setColor([1.0, 1.0, 1.0, 1.0]);
+
+            render();
+        }
+
+        function render(){
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clearColor(0.4, 0.6, 0.9, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            gl.enable(gl.DEPTH_TEST);
+            gl.enable(gl.CULL_FACE);
+
+            //gl.depthFunc(gl.LEQUAL);
+            gl.cullFace(gl.BACK);
+
+            console.log("Render");
+
+            input();
+
+            /*simplePipeline.use();
+
+            gl.uniformMatrix4fv(simplePipeline.getUniformLocation("u_mProj"), false, camera.getProjectionMatrix());
+            gl.uniformMatrix4fv(simplePipeline.getUniformLocation("u_mView"), false, camera.getViewMatrix());
+            gl.uniform3fv(simplePipeline.getUniformLocation("u_camera_position"), camera.getPosition());
+
+            grid.setPosition([0.0, 0.0, 0.0]);
+            grid.render(simplePipeline, RenderMode.LineLoop);*/
+
+            cookTorrancePipeline.use();
+            gl.uniformMatrix4fv(cookTorrancePipeline.getUniformLocation("u_mProj"), false, camera.getProjectionMatrix());
+            gl.uniformMatrix4fv(cookTorrancePipeline.getUniformLocation("u_mView"), false, camera.getViewMatrix());
+            gl.uniform3fv(cookTorrancePipeline.getUniformLocation("u_camera_position"), camera.getPosition());
+
+            cookTorrancePipeline.setLight(directionalLight, "u_directional_light");
+
+            floor.setPosition([0.0, 0.0, 0.0]);
+            floor.render(cookTorrancePipeline, RenderMode.Triangles);
+            debugger;
+
+            requestAnimationFrame(render);
+        }
+    </script>
+</body>
+</html>
